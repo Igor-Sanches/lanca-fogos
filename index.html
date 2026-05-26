@@ -1,0 +1,774 @@
+```html
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Espetáculo de Fogos de Artifício Interativo</title>
+    <!-- Tailwind CSS para estilização moderna -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons para ícones bonitos -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #020205;
+            font-family: system-ui, -apple-system, sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        /* Efeito de vidro desfocado para o painel de controlo */
+        .glass-panel {
+            background: rgba(10, 10, 18, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px rgba(255, 255, 255, 0.1) solid;
+        }
+        /* Custom scrollbar para o painel de configurações */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="w-full h-screen text-slate-100 flex items-center justify-center">
+
+    <!-- Canvas Principal do Espetáculo -->
+    <canvas id="fireworksCanvas"></canvas>
+
+    <!-- UI Overlay -->
+    <div class="absolute inset-0 z-10 pointer-events-none flex flex-col justify-between p-4 md:p-6">
+        
+        <!-- Cabeçalho / Título do App -->
+        <header class="w-full flex justify-between items-start pointer-events-auto">
+            <div class="glass-panel px-4 py-2.5 rounded-2xl flex items-center gap-3 shadow-2xl">
+                <div class="bg-red-500/20 p-2 rounded-xl border border-red-500/30 animate-pulse">
+                    <i data-lucide="sparkles" class="w-6 h-6 text-red-400"></i>
+                </div>
+                <div>
+                    <h1 class="text-sm md:text-base font-bold tracking-wider uppercase bg-gradient-to-r from-red-400 via-pink-400 to-indigo-400 bg-clip-text text-transparent">Espetáculo de Luzes</h1>
+                    <p class="text-[10px] md:text-xs text-slate-400">Toque no ecrã para lançar</p>
+                </div>
+            </div>
+
+            <!-- Botão de Ativar Som -->
+            <button id="muteBtn" class="glass-panel p-3 rounded-2xl flex items-center justify-center hover:bg-slate-800/80 transition-all pointer-events-auto active:scale-95 text-red-400 border border-red-500/20 shadow-lg">
+                <i id="muteIcon" data-lucide="volume-2" class="w-5 h-5"></i>
+            </button>
+        </header>
+
+        <!-- Painel de Controlos Inferior -->
+        <footer class="w-full max-w-4xl mx-auto flex flex-col md:flex-row gap-4 items-end justify-between pointer-events-auto mt-auto">
+            
+            <!-- Painel de Configurações Expandível -->
+            <div id="controlPanel" class="glass-panel w-full md:w-96 rounded-3xl p-5 shadow-2xl transition-all duration-300 translate-y-0 opacity-100 flex flex-col gap-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="sliders" class="w-4 h-4 text-pink-400"></i>
+                        <span class="text-xs font-semibold uppercase tracking-wider text-slate-300">Painel de Controlo</span>
+                    </div>
+                    <button id="togglePanelBtn" class="text-slate-400 hover:text-white transition-colors">
+                        <i data-lucide="chevron-down" class="w-4 h-4" id="panelChevron"></i>
+                    </button>
+                </div>
+
+                <!-- Conteúdo Ajustável -->
+                <div id="panelContent" class="flex flex-col gap-4 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1">
+                    
+                    <!-- Modo Automático -->
+                    <div class="flex items-center justify-between bg-slate-900/40 p-3 rounded-xl border border-slate-800">
+                        <div class="flex flex-col">
+                            <span class="text-xs font-medium text-slate-200">Disparo Automático</span>
+                            <span class="text-[10px] text-slate-400">Lançamentos automáticos contínuos</span>
+                        </div>
+                        <button id="autoToggle" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-pink-500">
+                            <span id="autoToggleCircle" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform translate-x-6"></span>
+                        </button>
+                    </div>
+
+                    <!-- Tipo de Explosão -->
+                    <div class="flex flex-col gap-1.5">
+                        <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Tipo de Explosão</label>
+                        <select id="fireworkType" class="bg-slate-950/60 border border-slate-800 text-xs text-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-pink-500 w-full cursor-pointer">
+                            <option value="classic">Clássica (Esfera de Centelhas)</option>
+                            <option value="ring">Anel Perfeito</option>
+                            <option value="heart">Coração Romântico</option>
+                            <option value="willow">Salgueiro Chorão (Efeito Longo)</option>
+                            <option value="crackle">Estalidos Cintilantes</option>
+                        </select>
+                    </div>
+
+                    <!-- Palete de Cores -->
+                    <div class="flex flex-col gap-1.5">
+                        <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Palete de Cores</label>
+                        <select id="colorPalette" class="bg-slate-950/60 border border-slate-800 text-xs text-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-pink-500 w-full cursor-pointer">
+                            <option value="rainbow">Arco-Íris Espetacular</option>
+                            <option value="neon">Cores Neon Vibrantes</option>
+                            <option value="pastel">Tons Pastel Suaves</option>
+                            <option value="gold">Dourado Imperial</option>
+                            <option value="patriotic">Cores Nacionais (Verde, Vermelho, Amarelo)</option>
+                        </select>
+                    </div>
+
+                    <!-- Quantidade de Partículas (Intensidade) -->
+                    <div class="flex flex-col gap-1">
+                        <div class="flex justify-between text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                            <span>Quantidade de Centelhas</span>
+                            <span id="particleCountVal" class="text-pink-400">120</span>
+                        </div>
+                        <input type="range" id="particleCount" min="40" max="300" value="120" class="w-full accent-pink-500 bg-slate-800 h-1.5 rounded-lg appearance-none cursor-pointer">
+                    </div>
+
+                    <!-- Gravidade -->
+                    <div class="flex flex-col gap-1">
+                        <div class="flex justify-between text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                            <span>Gravidade (Queda)</span>
+                            <span id="gravityVal" class="text-pink-400">Média</span>
+                        </div>
+                        <input type="range" id="gravity" min="1" max="5" value="3" class="w-full accent-pink-500 bg-slate-800 h-1.5 rounded-lg appearance-none cursor-pointer">
+                    </div>
+
+                    <!-- Efeito do Vento (Deriva) -->
+                    <div class="flex flex-col gap-1">
+                        <div class="flex justify-between text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                            <span>Vento / Deriva Lateral</span>
+                            <span id="windVal" class="text-pink-400">Sem Vento</span>
+                        </div>
+                        <input type="range" id="wind" min="-3" max="3" value="0" class="w-full accent-pink-500 bg-slate-800 h-1.5 rounded-lg appearance-none cursor-pointer">
+                    </div>
+
+                    <!-- Volume dos Sons -->
+                    <div class="flex flex-col gap-1">
+                        <div class="flex justify-between text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                            <span>Volume</span>
+                            <span id="volumeVal" class="text-pink-400">70%</span>
+                        </div>
+                        <input type="range" id="volume" min="0" max="100" value="70" class="w-full accent-pink-500 bg-slate-800 h-1.5 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Botão de Lançamento Rápido -->
+            <button id="quickLaunchBtn" class="glass-panel w-full md:w-auto px-6 py-4 rounded-3xl flex items-center justify-center gap-3 hover:bg-gradient-to-r hover:from-red-500 hover:to-pink-600 border border-pink-500/20 shadow-xl transition-all hover:shadow-pink-500/15 group active:scale-98">
+                <i data-lucide="rocket" class="w-5 h-5 text-pink-400 group-hover:text-white group-hover:-translate-y-1 transition-transform"></i>
+                <span class="text-sm font-semibold tracking-wider uppercase text-slate-200 group-hover:text-white">Lançar Múltiplos!</span>
+            </button>
+        </footer>
+    </div>
+
+    <!-- Script Principal do Simulador -->
+    <script>
+        // Inicialização de Ícones Lucide
+        lucide.createIcons();
+
+        // Referências DOM
+        const canvas = document.getElementById('fireworksCanvas');
+        const ctx = canvas.getContext('2d');
+        const muteBtn = document.getElementById('muteBtn');
+        const muteIcon = document.getElementById('muteIcon');
+        const controlPanel = document.getElementById('controlPanel');
+        const togglePanelBtn = document.getElementById('togglePanelBtn');
+        const panelChevron = document.getElementById('panelChevron');
+        const panelContent = document.getElementById('panelContent');
+        const autoToggle = document.getElementById('autoToggle');
+        const autoToggleCircle = document.getElementById('autoToggleCircle');
+        const fireworkTypeSelect = document.getElementById('fireworkType');
+        const colorPaletteSelect = document.getElementById('colorPalette');
+        const particleCountSlider = document.getElementById('particleCount');
+        const particleCountVal = document.getElementById('particleCountVal');
+        const gravitySlider = document.getElementById('gravity');
+        const gravityVal = document.getElementById('gravityVal');
+        const windSlider = document.getElementById('wind');
+        const windVal = document.getElementById('windVal');
+        const volumeSlider = document.getElementById('volume');
+        const volumeVal = document.getElementById('volumeVal');
+        const quickLaunchBtn = document.getElementById('quickLaunchBtn');
+
+        // Estado do Aplicativo
+        let isMuted = false;
+        let isAutoLaunch = true;
+        let panelCollapsed = false;
+        let fireworks = [];
+        let particles = [];
+        let audioCtx = null;
+        let masterGain = null;
+
+        // Configurações Físicas iniciais
+        let config = {
+            type: 'classic',
+            palette: 'rainbow',
+            particleCount: 120,
+            gravity: 0.08,
+            wind: 0,
+            volume: 0.7
+        };
+
+        // Redimensionamento Inteligente do Canvas
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // --- SISTEMA SINTETIZADOR DE ÁUDIO (Web Audio API) ---
+        // Cria efeitos sonoros realistas programaticamente sem carregar ficheiros pesados
+        function initAudio() {
+            if (audioCtx) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            masterGain = audioCtx.createGain();
+            masterGain.gain.setValueAtTime(isMuted ? 0 : config.volume, audioCtx.currentTime);
+            masterGain.connect(audioCtx.destination);
+        }
+
+        // Som de lançamento (Subida do Foguete)
+        function playLaunchSound() {
+            if (!audioCtx || isMuted) return;
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(80, audioCtx.currentTime);
+            // Frequência sobe gradualmente para simular a aceleração do foguete
+            osc.frequency.exponentialRampToValueAtTime(320, audioCtx.currentTime + 0.5);
+
+            gainNode.gain.setValueAtTime(0.01, audioCtx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0.08, audioCtx.currentTime + 0.1);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+
+            osc.connect(gainNode);
+            gainNode.connect(masterGain);
+
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.5);
+        }
+
+        // Som de explosão (Baque Grave + Estalidos)
+        function playExplosionSound(intensity = 1) {
+            if (!audioCtx || isMuted) return;
+
+            const time = audioCtx.currentTime;
+            
+            // 1. O Sub-Bass da Explosão Principal (Estrondo)
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(100 * intensity, time);
+            osc.frequency.exponentialRampToValueAtTime(10, time + 0.8 * intensity);
+
+            gainNode.gain.setValueAtTime(0.4 * intensity, time);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.8 * intensity);
+
+            osc.connect(gainNode);
+            gainNode.connect(masterGain);
+            osc.start();
+            osc.stop(time + 0.8 * intensity);
+
+            // 2. Ruído de Alta Frequência (Fricção e Estalido)
+            const bufferSize = audioCtx.sampleRate * 0.4; // 0.4 segundos de ruído
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+
+            const noiseNode = audioCtx.createBufferSource();
+            noiseNode.buffer = buffer;
+
+            // Filtro para amaciar o ruído
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.value = 1200;
+            filter.Q.value = 1.2;
+
+            const noiseGain = audioCtx.createGain();
+            noiseGain.gain.setValueAtTime(0.12 * intensity, time);
+            noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.4);
+
+            noiseNode.connect(filter);
+            filter.connect(noiseGain);
+            noiseGain.connect(masterGain);
+
+            noiseNode.start();
+            noiseNode.stop(time + 0.4);
+        }
+
+        // Pequeno estalido individual (para faíscas extras / crackle)
+        function playCrackleSound() {
+            if (!audioCtx || isMuted) return;
+            const time = audioCtx.currentTime;
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(1200 + Math.random() * 800, time);
+            
+            gain.gain.setValueAtTime(0.015, time);
+            gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
+            
+            osc.connect(gain);
+            gain.connect(masterGain);
+            osc.start();
+            osc.stop(time + 0.06);
+        }
+
+        // --- SISTEMA DE PALETES DE CORES ---
+        const palettes = {
+            rainbow: ['#ff0055', '#ff9900', '#ffea00', '#00ff66', '#00ffff', '#0099ff', '#cc00ff', '#ff00aa'],
+            neon: ['#ff007f', '#39ff14', '#00f6ff', '#ff00ff', '#8a2be2'],
+            pastel: ['#ffb7b2', '#ffdac1', '#e2f0cb', '#b5ead7', '#c7ceea', '#ff9aa2'],
+            gold: ['#ffe875', '#f7d070', '#e0aa3e', '#b58a30', '#fffcf0'],
+            patriotic: ['#006622', '#ff0000', '#ffea00', '#ffffff'] // Cores da bandeira portuguesa (Verde, Vermelho, Amarelo/Ouro) e Branco
+        };
+
+        function getRandomColor(paletteName) {
+            const list = palettes[paletteName] || palettes.rainbow;
+            return list[Math.floor(Math.random() * list.length)];
+        }
+
+        // --- CLASSE ROCKET (FOGUETE EM SUBIDA) ---
+        class Rocket {
+            constructor(startX, startY, targetX, targetY, color, type, pCount) {
+                this.x = startX;
+                this.y = startY;
+                this.targetX = targetX;
+                this.targetY = targetY;
+                this.color = color;
+                this.type = type;
+                this.pCount = pCount;
+
+                // Cálculo da trajetória arqueada elegante
+                const distanceY = startY - targetY;
+                const distanceX = targetX - startX;
+                
+                this.speed = 15 + Math.random() * 5; // velocidade inicial
+                this.angle = Math.atan2(distanceY, distanceX);
+                
+                this.vx = Math.cos(this.angle) * this.speed;
+                this.vy = -Math.sin(this.angle) * this.speed;
+                
+                this.trail = [];
+                this.trailMaxLength = 12;
+                this.distanceTraveled = 0;
+                this.totalDistance = Math.hypot(distanceX, distanceY);
+                this.alive = true;
+                
+                playLaunchSound();
+            }
+
+            update() {
+                // Guarda rasto do percurso
+                this.trail.push({ x: this.x, y: this.y });
+                if (this.trail.length > this.trailMaxLength) {
+                    this.trail.shift();
+                }
+
+                // Aplica física de desaceleração gradual na subida
+                this.x += this.vx;
+                this.y += this.vy;
+                this.vy += config.gravity * 0.5; // gravidade leve na subida
+                this.vx += config.wind * 0.05;
+
+                // Verifica proximidade do ponto de pico/explosão
+                const currentDistY = this.y - this.targetY;
+                
+                // Explode ao aproximar do pico da trajetória ou ao desacelerar demais
+                if (this.vy >= -1 || this.y <= this.targetY) {
+                    this.alive = false;
+                    this.explode();
+                }
+            }
+
+            draw() {
+                ctx.beginPath();
+                if (this.trail.length > 1) {
+                    ctx.moveTo(this.trail[0].x, this.trail[0].y);
+                    for (let i = 1; i < this.trail.length; i++) {
+                        ctx.lineTo(this.trail[i].x, this.trail[i].y);
+                    }
+                } else {
+                    ctx.moveTo(this.x, this.y);
+                    ctx.lineTo(this.x - this.vx, this.y - this.vy);
+                }
+                
+                ctx.strokeStyle = this.color;
+                ctx.lineWidth = 2.5;
+                ctx.lineCap = 'round';
+                ctx.stroke();
+
+                // Cabeça do foguete brilhante
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 3, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+            }
+
+            explode() {
+                playExplosionSound(this.pCount / 120);
+                const baseColor = this.color;
+                
+                // Geração de partículas baseada no tipo de explosão configurado
+                if (this.type === 'ring') {
+                    // Explosão tipo Anel Concentrado
+                    for (let i = 0; i < this.pCount; i++) {
+                        const angle = (i / this.pCount) * Math.PI * 2;
+                        const speed = 4 + Math.random() * 2;
+                        particles.push(new Particle(this.x, this.y, Math.cos(angle) * speed, Math.sin(angle) * speed, baseColor, this.type));
+                    }
+                } else if (this.type === 'heart') {
+                    // Explosão matemática em forma de Coração
+                    for (let i = 0; i < this.pCount; i++) {
+                        const t = (i / this.pCount) * Math.PI * 2;
+                        // Equações paramétricas clássicas do coração
+                        const xSpeed = 16 * Math.pow(Math.sin(t), 3) * 0.35;
+                        const ySpeed = -(13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t)) * 0.35;
+                        
+                        particles.push(new Particle(
+                            this.x, 
+                            this.y, 
+                            xSpeed + (Math.random() - 0.5) * 0.5, 
+                            ySpeed + (Math.random() - 0.5) * 0.5, 
+                            baseColor, 
+                            this.type
+                        ));
+                    }
+                } else if (this.type === 'willow') {
+                    // Salgueiro Chorão: partículas muito leves que descem suavemente com rasto longo
+                    for (let i = 0; i < this.pCount; i++) {
+                        const angle = Math.random() * Math.PI * 2;
+                        const speed = 1.5 + Math.random() * 4;
+                        particles.push(new Particle(
+                            this.x, 
+                            this.y, 
+                            Math.cos(angle) * speed, 
+                            Math.sin(angle) * speed, 
+                            baseColor, 
+                            this.type
+                        ));
+                    }
+                } else if (this.type === 'crackle') {
+                    // Estalidos: explosão com faíscas que voltam a estalar
+                    for (let i = 0; i < this.pCount; i++) {
+                        const angle = Math.random() * Math.PI * 2;
+                        const speed = 3 + Math.random() * 6;
+                        particles.push(new Particle(
+                            this.x, 
+                            this.y, 
+                            Math.cos(angle) * speed, 
+                            Math.sin(angle) * speed, 
+                            baseColor, 
+                            this.type
+                        ));
+                    }
+                } else {
+                    // Clássica Esfera com variação de velocidade
+                    for (let i = 0; i < this.pCount; i++) {
+                        const angle = Math.random() * Math.PI * 2;
+                        const speed = Math.random() * 7 + 0.5;
+                        particles.push(new Particle(
+                            this.x, 
+                            this.y, 
+                            Math.cos(angle) * speed, 
+                            Math.sin(angle) * speed, 
+                            baseColor, 
+                            this.type
+                        ));
+                    }
+                }
+            }
+        }
+
+        // --- CLASSE PARTICLE (PARTÍCULAS DA EXPLOSÃO) ---
+        class Particle {
+            constructor(x, y, vx, vy, color, type) {
+                this.x = x;
+                this.y = y;
+                this.vx = vx;
+                this.vy = vy;
+                this.color = color;
+                this.type = type;
+                
+                this.alpha = 1;
+                // Velocidade de fadeout dinâmica por estilo
+                this.decay = this.type === 'willow' ? 0.007 + Math.random() * 0.005 : 0.012 + Math.random() * 0.012;
+                this.friction = this.type === 'willow' ? 0.985 : 0.95; // willow voa mais longe
+                this.trail = [];
+                this.trailMaxLength = this.type === 'willow' ? 18 : 6;
+                this.sparkle = Math.random() > 0.4;
+                this.isCrackle = this.type === 'crackle' && Math.random() > 0.7;
+            }
+
+            update() {
+                // Rasto de partículas
+                this.trail.push({ x: this.x, y: this.y });
+                if (this.trail.length > this.trailMaxLength) {
+                    this.trail.shift();
+                }
+
+                // Aplica forças
+                this.vx *= this.friction;
+                this.vy *= this.friction;
+                
+                // Efeito de gravidade ajustável
+                this.vy += config.gravity;
+                this.vx += config.wind * 0.02;
+
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Desvanecimento lento
+                this.alpha -= this.decay;
+
+                // Efeito sonoro secundário de estalido para faíscas crackle no meio da vida útil
+                if (this.isCrackle && this.alpha < 0.6 && this.alpha > 0.55) {
+                    playCrackleSound();
+                    // Cria uma micro-partícula secundária
+                    const miniAngle = Math.random() * Math.PI * 2;
+                    const miniSpeed = 1 + Math.random() * 2;
+                    particles.push(new Particle(this.x, this.y, Math.cos(miniAngle) * miniSpeed, Math.sin(miniAngle) * miniSpeed, '#ffffff', 'classic'));
+                    this.isCrackle = false; // Apenas um estalido por partícula original
+                }
+            }
+
+            draw() {
+                if (this.alpha <= 0) return;
+
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                ctx.globalCompositeOperation = 'screen';
+
+                // Desenha rasto brilhante
+                if (this.trail.length > 1) {
+                    ctx.beginPath();
+                    ctx.moveTo(this.trail[0].x, this.trail[0].y);
+                    for (let i = 1; i < this.trail.length; i++) {
+                        ctx.lineTo(this.trail[i].x, this.trail[i].y);
+                    }
+                    ctx.strokeStyle = this.color;
+                    ctx.lineWidth = this.type === 'willow' ? 1.2 : 2;
+                    ctx.stroke();
+                }
+
+                // Corpo cintilante da partícula
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.sparkle && Math.random() > 0.5 ? 2.5 : 1.5, 0, Math.PI * 2);
+                ctx.fillStyle = this.type === 'willow' && Math.random() > 0.8 ? '#ffffff' : this.color;
+                ctx.fill();
+
+                ctx.restore();
+            }
+        }
+
+        // --- LOOP DE ANIMAÇÃO PRINCIPAL ---
+        function animate() {
+            // Desenha um fundo semi-transparente para criar o rasto brilhante fantasmagórico
+            ctx.fillStyle = 'rgba(2, 2, 5, 0.18)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Atualiza e desenha foguetes
+            for (let i = fireworks.length - 1; i >= 0; i--) {
+                const f = fireworks[i];
+                f.update();
+                if (f.alive) {
+                    f.draw();
+                } else {
+                    fireworks.splice(i, 1);
+                }
+            }
+
+            // Atualiza e desenha partículas de explosão
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.update();
+                if (p.alpha > 0) {
+                    p.draw();
+                } else {
+                    particles.splice(i, 1);
+                }
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        // --- SISTEMA DE LANÇAMENTO MANUAL ---
+        function launchFirework(targetX, targetY) {
+            initAudio(); // Inicializa o contexto de áudio em resposta a ação do utilizador se necessário
+            
+            // Origem: Parte inferior central/aproximada da tela
+            const startX = canvas.width / 2 + (Math.random() - 0.5) * (canvas.width * 0.4);
+            const startY = canvas.height + 10;
+            const color = getRandomColor(config.palette);
+            
+            fireworks.push(new Rocket(startX, startY, targetX, targetY, color, config.type, config.particleCount));
+        }
+
+        // Lançamento com clique na tela (apenas fora dos painéis de interface)
+        window.addEventListener('click', (e) => {
+            // Previne disparos acidentais ao interagir com controlos
+            if (e.target.closest('#controlPanel') || e.target.closest('#quickLaunchBtn') || e.target.closest('#muteBtn') || e.target.closest('header')) {
+                return;
+            }
+            launchFirework(e.clientX, e.clientY);
+        });
+
+        // Suporte para Ecrãs Táteis (Mobile)
+        window.addEventListener('touchstart', (e) => {
+            if (e.target.closest('#controlPanel') || e.target.closest('#quickLaunchBtn') || e.target.closest('#muteBtn') || e.target.closest('header')) {
+                return;
+            }
+            const touch = e.touches[0];
+            launchFirework(touch.clientX, touch.clientY);
+        });
+
+        // --- AUTO-LAUNCHER (MODO AUTOMÁTICO) ---
+        let autoLaunchInterval;
+        function setupAutoLaunch() {
+            if (autoLaunchInterval) clearInterval(autoLaunchInterval);
+            
+            if (isAutoLaunch) {
+                autoLaunchInterval = setInterval(() => {
+                    const targetX = Math.random() * canvas.width * 0.8 + canvas.width * 0.1;
+                    const targetY = Math.random() * canvas.height * 0.45 + canvas.height * 0.1;
+                    launchFirework(targetX, targetY);
+                }, 1300 + Math.random() * 800); // Ritmo relaxante e contínuo
+            }
+        }
+
+        // --- GESTÃO DE EVENTOS E CONTROLOS DA INTERFACE ---
+
+        // Ativar/Desativar Som
+        muteBtn.addEventListener('click', () => {
+            isMuted = !isMuted;
+            muteIcon.setAttribute('data-lucide', isMuted ? 'volume-x' : 'volume-2');
+            lucide.createIcons();
+            
+            // Feedback visual no botão de som
+            if (isMuted) {
+                muteBtn.classList.remove('text-red-400', 'border-red-500/20');
+                muteBtn.classList.add('text-slate-400', 'border-slate-800');
+            } else {
+                initAudio();
+                muteBtn.classList.add('text-red-400', 'border-red-500/20');
+                muteBtn.classList.remove('text-slate-400', 'border-slate-800');
+                if (masterGain) masterGain.gain.setValueAtTime(config.volume, audioCtx.currentTime);
+            }
+        });
+
+        // Recolher/Expandir Painel de Controlos
+        togglePanelBtn.addEventListener('click', () => {
+            panelCollapsed = !panelCollapsed;
+            if (panelCollapsed) {
+                panelContent.style.display = 'none';
+                panelChevron.setAttribute('data-lucide', 'chevron-up');
+                controlPanel.classList.add('md:w-60');
+                controlPanel.classList.remove('md:w-96');
+            } else {
+                panelContent.style.display = 'flex';
+                panelChevron.setAttribute('data-lucide', 'chevron-down');
+                controlPanel.classList.add('md:w-96');
+                controlPanel.classList.remove('md:w-60');
+            }
+            lucide.createIcons();
+        });
+
+        // Alternar Disparo Automático
+        autoToggle.addEventListener('click', () => {
+            isAutoLaunch = !isAutoLaunch;
+            if (isAutoLaunch) {
+                autoToggle.classList.remove('bg-slate-700');
+                autoToggle.classList.add('bg-pink-500');
+                autoToggleCircle.classList.remove('translate-x-1');
+                autoToggleCircle.classList.add('translate-x-6');
+            } else {
+                autoToggle.classList.add('bg-slate-700');
+                autoToggle.classList.remove('bg-pink-500');
+                autoToggleCircle.classList.add('translate-x-1');
+                autoToggleCircle.classList.remove('translate-x-6');
+            }
+            setupAutoLaunch();
+        });
+
+        // Tipo de Explosão
+        fireworkTypeSelect.addEventListener('change', (e) => {
+            config.type = e.target.value;
+        });
+
+        // Palete de Cores
+        colorPaletteSelect.addEventListener('change', (e) => {
+            config.palette = e.target.value;
+        });
+
+        // Quantidade de Centelhas
+        particleCountSlider.addEventListener('input', (e) => {
+            config.particleCount = parseInt(e.target.value);
+            particleCountVal.textContent = config.particleCount;
+        });
+
+        // Gravidade (Ajuste numérico com rótulos amigáveis)
+        gravitySlider.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value);
+            config.gravity = val * 0.026; // Fator multiplicador para ficar realista
+            
+            const labels = ['Muito Baixa', 'Baixa', 'Média', 'Alta', 'Júpiter!'];
+            gravityVal.textContent = labels[val - 1];
+        });
+
+        // Vento
+        windSlider.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value);
+            config.wind = val * 1.5;
+            
+            if (val === 0) windVal.textContent = 'Sem Vento';
+            else if (val > 0) windVal.textContent = `Vento Este (${val})`;
+            else windVal.textContent = `Vento Oeste (${Math.abs(val)})`;
+        });
+
+        // Volume de Áudio
+        volumeSlider.addEventListener('input', (e) => {
+            const pct = parseInt(e.target.value);
+            config.volume = pct / 100;
+            volumeVal.textContent = `${pct}%`;
+            
+            if (masterGain && audioCtx) {
+                masterGain.gain.setValueAtTime(isMuted ? 0 : config.volume, audioCtx.currentTime);
+            }
+        });
+
+        // Botão de Disparos Múltiplos Rápidos
+        quickLaunchBtn.addEventListener('click', () => {
+            initAudio();
+            for (let i = 0; i < 6; i++) {
+                setTimeout(() => {
+                    const targetX = Math.random() * canvas.width * 0.8 + canvas.width * 0.1;
+                    const targetY = Math.random() * canvas.height * 0.4 + canvas.height * 0.15;
+                    launchFirework(targetX, targetY);
+                }, i * 200); // Dispara sequencialmente a cada 200ms
+            }
+        });
+
+        // Inicia aplicação após carregamento da janela
+        window.onload = function() {
+            setupAutoLaunch();
+            animate();
+        }
+    </script>
+</body>
+</html>
+
+```
